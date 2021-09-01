@@ -1,0 +1,1 @@
+#spring:#  application:#    name: rvy-order-service##  cloud: #   config: #     uri: http://3.232.89.40:8888
