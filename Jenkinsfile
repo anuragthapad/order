@@ -1,50 +1,63 @@
 pipeline {
-  agent any
-  stages {	
-	stage('Maven Compile'){
-		steps{
-			echo 'Project compile stage'
-			bat label: 'Compilation running', script: '''mvn compile'''
-	       	}
-	}
-	
-	stage('Unit Test') {
-	   steps {
-			echo 'Project Testing stage'
-			bat label: 'Test running', script: '''mvn test'''
-	       
-       		}
-   	}
-	
-	stage ('Analysis(Checkstyle,PMD,CPD,SpotBugs)') {
+    agent any 
+    stages {
+        stage('Compile and Clean') { 
+            steps {
+
+                sh "mvn clean compile"
+            }
+        }
+        
+        stage('Junit5 Test') { 
+            steps {
+
+                sh "mvn test"
+            }
+        }
+        
+		 stage ('Analysis(Checkstyle,PMD,CPD,SpotBugs)') {
             steps {
                 sh 'mvn clover:instrument checkstyle:checkstyle pmd:pmd pmd:cpd spotbugs:spotbugs'
             }
         }
-
-	stage('Jacoco Coverage Report') {
+        
+		stage('Jacoco Coverage Report') {
         	steps{
-            		jacoco()
+        			jacoco(execPattern: '**/target/jacoco.exec',
+				    classPattern: 'target/classes',
+				    sourcePattern: 'src/main/java',
+				    exclusionPattern: 'src/test*')
+			}
 		}
-	}
        
        stage('SonarQube'){
 		steps{
-				bat label: '', script: '''mvn sonar:sonar \
-				-Dsonar.host.url=http://localhost:4950 \
-				-Dsonar.login=2d1ec4021e5735308a130599522684e3074c7918'''
-			}
-   		}
-	
-	stage('Maven Package'){
-		steps{
-			echo 'Project packaging stage'
-			bat label: 'Project packaging', script: '''mvn package'''
+			sh "mvn sonar:sonar -Dsonar.host.url=http://localhost:4950 -Dsonar.login=2d1ec4021e5735308a130599522684e3074c7918"
 		}
-	} 		
-    
-  }
-	post {
+   	}
+	
+	stage('Maven Build') { 
+            steps {
+                sh "mvn package"
+            }
+        }
+		stage('Acceptance report') {
+            steps{
+        			cucumber buildStatus: 'UNSTABLE',
+                		reportTitle: 'My Cucumber Report',
+                		fileIncludePattern: '**/*.json',
+               			trendsLimit: 10,
+                		classifications: [
+                    		[
+                        		'key': 'Browser',
+                        		'value': 'Firefox'
+                    		]
+                		]
+                  }
+			}
+			      
+    }
+    post {
         always {
             junit testResults: '**/target/surefire-reports/TEST-*.xml'
 
@@ -57,4 +70,3 @@ pipeline {
         }
     }
 }
-
